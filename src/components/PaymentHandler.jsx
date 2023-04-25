@@ -1,8 +1,8 @@
 //some pieces of code are commented beacuse they are not necessary, or causing unwanted problems
 import { useState } from "react";
+import { Buffer } from "buffer";
 import { Connection, PublicKey, SystemProgram ,Transaction} from "@solana/web3.js";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
-
 
 const connection = new Connection("https://api.mainnet-beta.solana.com");
 
@@ -16,37 +16,44 @@ export default function PaymentHandler() {
   const [wallet, setWallet] = useState(null);
  
 
+  function toBufferLE2(value, length) {
+    const buff = new buffer.Buffer(length);
+    buff.writeBigInt64LE(BigInt(value));
+    return buff;
+  }
+
   const connectWallet = async () => {
     const provider = new PhantomWalletAdapter();
     await provider.connect();
     setWallet(provider);
     setStatus(`Connected to wallet ${wallet.publicKey.toBase58()}`);
-    
-    
   };
  
   const sendPayment = async () => {
     // const walletAccount = await connectWallet.provider.getAccountInfo(wallet.publicKey);
-
     const transaction = new Transaction();
+    const publicKey = wallet.publicKey;
+    console.log(publicKey)
+
     transaction.add(
       SystemProgram.transfer({
-        fromPubkey: wallet.publicKey,
+        fromPubkey: publicKey,
         toPubkey: new PublicKey(destination),
         lamports: amount * 1000000000,
       })
     );
+    console.log("demo")
 //try to fix this blockchash, and sign the transaction , and send it
     const { blockhash } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
 
-    const signature = await wallet.signTransaction(transaction);
+    const signedTransaction= await wallet.signTransaction(transaction);
 
-    const signedTransaction = transaction.addSignature(wallet.publicKey, signature);
+    const signature = connection.addSignature(signedTransaction);
 
     setStatus(`Payment sent with signature: ${signature}`);
 
-    // const transactionId = await connection.sendTransaction(signedTransaction);
+    const transactionId = await connection.sendTransaction(signedTransaction, {skipPreflight: false});
 
     await connection.confirmTransaction(signature);
     setStatus(`Transaction ${transactionId} sent`);
@@ -55,9 +62,7 @@ export default function PaymentHandler() {
   return (
     <div>
       <button onClick={connectWallet}>{status}</button>
-    
-        <button onClick={sendPayment}>Send Payment</button>
-    
+      <button onClick={sendPayment}>Send Payment</button>
     </div>
   );
 }
